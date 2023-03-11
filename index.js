@@ -27,14 +27,33 @@ async function run() {
       .db("doctorService")
       .collection("bookings");
 
+      // use aggregate to query multiple collection and then to merge data
+
     app.get("/appointmentOptions", async (req, res) => {
       const query = {};
+      const date = req.query.date
+      console.log(date)
       const options = await appointmentsOptionCollection.find(query).toArray();
+
+      //get the bookings by the provided date
+      const bookingQuery = {appointmentDate:date}
+      const alreadyBooked = await bookingsCollection.find(bookingQuery).toArray()
+
+
+      // code carefully
+      options.forEach(option =>{
+        const optionBooked = alreadyBooked.filter(book=> book.treatment === option.name)
+        const bookedSlots = optionBooked.map(book=>book.slot)
+        const remainingSlots = option.slots.filter(slot=>!bookedSlots.includes(slot))
+        option.slots=remainingSlots
+      })
       res.send(options);
     });
+
+
     app.post("/bookings", async (req, res) => {
       const booking = req.body
-      console.log(booking)
+      
       const result = await bookingsCollection.insertOne(booking)
       console.log(result)
       res.json(result);
