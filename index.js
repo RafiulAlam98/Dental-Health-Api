@@ -2,6 +2,7 @@ const { MongoClient, ServerApiVersion } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 const port = process.env.PORT || 5000;
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
@@ -18,6 +19,15 @@ const client = new MongoClient(uri, {
   serverApi: ServerApiVersion.v1,
 });
 
+// jwt middleware
+const verifyJwt = (req, res, next) => {
+  console.log(req.headers.authorization);
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send("unauthorized access");
+  }
+};
+
 async function run() {
   try {
     const appointmentsOptionCollection = client
@@ -26,13 +36,14 @@ async function run() {
     const bookingsCollection = client
       .db("doctorService")
       .collection("bookings");
+    const usersCollection = client.db("doctorService").collection("users");
 
     // use aggregate to query multiple collection and then to merge data
 
     app.get("/appointmentOptions", async (req, res) => {
       const query = {};
       const date = req.query.date;
-      console.log(date);
+
       const options = await appointmentsOptionCollection.find(query).toArray();
 
       //get the bookings by the provided date
@@ -55,16 +66,18 @@ async function run() {
       res.send(options);
     });
 
-    app.get("/bookings", async (req, res) => {
+    app.get("/bookings", verifyJwt, async (req, res) => {
       const email = req.query.email;
+
       const query = { email: email };
       const booking = await bookingsCollection.find(query).toArray();
-      console.log(booking);
+
       res.send(booking);
     });
 
     app.post("/bookings", async (req, res) => {
       const booking = req.body;
+
       const query = {
         appointmentDate: booking.appointmentDate,
         email: booking.email,
@@ -79,6 +92,27 @@ async function run() {
       const result = await bookingsCollection.insertOne(booking);
       console.log(result);
       res.json(result);
+    });
+
+    app.get("/jwt", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+
+      if (user) {
+        const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, {
+          expiresIn: "1h",
+        });
+        return res.send({ accessToken: token });
+      }
+      res.status(403).send({ accessToken: "" });
+    });
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      console.log(user);
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
     });
   } finally {
     //     await client.close();
