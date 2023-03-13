@@ -21,11 +21,20 @@ const client = new MongoClient(uri, {
 
 // jwt middleware
 const verifyJwt = (req, res, next) => {
-  console.log(req.headers.authorization);
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     return res.status(401).send("unauthorized access");
   }
+
+  const token = authHeader.split(" ")[1];
+
+  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+    if (err) {
+      return res.status(403).send({ message: "forbidden access" });
+    }
+    req.decoded = decoded;
+    next();
+  });
 };
 
 async function run() {
@@ -68,6 +77,10 @@ async function run() {
 
     app.get("/bookings", verifyJwt, async (req, res) => {
       const email = req.query.email;
+      const decodedEmail = req.decoded.email;
+      if (email !== decodedEmail) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
 
       const query = { email: email };
       const booking = await bookingsCollection.find(query).toArray();
