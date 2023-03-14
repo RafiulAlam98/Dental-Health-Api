@@ -47,8 +47,19 @@ async function run() {
       .db("doctorService")
       .collection("bookings");
     const usersCollection = client.db("doctorService").collection("users");
+    const doctorsCollection = client.db("doctorService").collection("doctors");
 
-    // use aggregate to query multiple collection and then to merge data
+    //NOTE:  make sure you use verifyAdmin after verifyJWT
+    const verifyAdmin = async (req, res, next) => {
+      const decodedEmail = req.decoded.email;
+      const query = { email: decodedEmail };
+      const user = await usersCollection.findOne(query);
+
+      if (user.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
 
     app.get("/appointmentOptions", async (req, res) => {
       const query = {};
@@ -74,6 +85,16 @@ async function run() {
         option.slots = remainingSlots;
       });
       res.send(options);
+    });
+
+    app.get("/appointmentSpeciality", async (req, res) => {
+      const query = {};
+      const result = await appointmentsOptionCollection
+        .find(query)
+        .project({ name: 1 })
+        .toArray();
+
+      res.send(result);
     });
 
     app.get("/bookings", verifyJwt, async (req, res) => {
@@ -142,14 +163,7 @@ async function run() {
       res.send({ isAdmin: user?.role === "admin" });
     });
 
-    app.put("/users/admin/:email", verifyJwt, async (req, res) => {
-      const decodedEmail = req.decoded.email;
-      const query = { email: decodedEmail };
-      const user = await usersCollection.findOne(query);
-      console.log(user);
-      if (user.role !== "admin") {
-        return res.status(403).send({ message: "forbidden access" });
-      }
+    app.put("/users/admin/:email", verifyJwt, verifyAdmin, async (req, res) => {
       const email = req.params.email;
 
       const filter = { email: email };
@@ -165,6 +179,25 @@ async function run() {
         options
       );
 
+      res.send(result);
+    });
+
+    app.get("/doctors", verifyJwt, verifyAdmin, async (req, res) => {
+      const query = {};
+      const doctors = await doctorsCollection.find(query).toArray();
+      res.send(doctors);
+    });
+
+    app.post("/doctors", verifyJwt, verifyAdmin, async (req, res) => {
+      const doctor = req.body;
+      const result = await doctorsCollection.insertOne(doctor);
+      res.send(result);
+    });
+
+    app.delete("/doctors/:email", verifyJwt, verifyAdmin, async (req, res) => {
+      const email = req.params.email;
+      const filter = { email };
+      const result = await doctorsCollection.deleteOne(filter);
       res.send(result);
     });
   } finally {
