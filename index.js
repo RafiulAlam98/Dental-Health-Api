@@ -135,7 +135,7 @@ async function run() {
       }
 
       const result = await bookingsCollection.insertOne(booking);
-      console.log(result);
+
       res.json(result);
     });
 
@@ -157,20 +157,28 @@ async function run() {
 
     app.post("/payment", verifyJwt, async (req, res) => {
       const payment = req.body;
-      console.log(payment);
+
       const result = await paymentCollection.insertOne(payment);
-      res.send(result);
-    });
+      const id = payment.bookingId;
+      const filter = { _id: new ObjectId(id) };
 
-    app.get("/payment", verifyJwt, async (req, res) => {
-      const query = {};
-      const result = await paymentCollection.find(query).toArray();
-
+      const updatedDoc = {
+        $set: {
+          paid: true,
+          transactionId: payment.tId,
+        },
+      };
+      const updatedResult = await bookingsCollection.updateOne(
+        filter,
+        updatedDoc
+      );
+      console.log("paid", updatedResult);
       res.send(result);
     });
 
     app.get("/jwt", async (req, res) => {
       const email = req.query.email;
+      console.log(email);
       const query = { email: email };
       const user = await usersCollection.findOne(query);
 
@@ -193,6 +201,14 @@ async function run() {
       const user = req.body;
       console.log(user);
       const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollection.deleteOne(query);
       res.send(result);
     });
 
